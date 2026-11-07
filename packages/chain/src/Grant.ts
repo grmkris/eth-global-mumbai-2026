@@ -175,3 +175,29 @@ export const buildRevoke = (input: { grantId: string; grant: Delegation; relayer
 /** The execution a revoke redeems (equal to its ExactExecution term). */
 export const revokeExecution = (grant: Delegation): Hex =>
   singleExecution(arcAddresses.delegationManager, disableDelegationCalldata(grant))
+
+/** The execution a send redeems: the owner's account calls `USDC.transfer(to, amount)` (equal to its ExactExecution term). */
+export const sendExecution = (to: Address, amount: bigint): Hex =>
+  singleExecution(USDC, transferCall(getAddress(to), amount))
+
+/**
+ * The owner's one-time send: owner → relayer, ExactExecution(USDC, 0, transfer(to, amount)) · LimitedCalls(1).
+ * The owner signs it with the passkey; the relayer redeems it, so the account itself moves its USDC (no allowance,
+ * no other call). Deterministic from (sendId, to, amount), so options and sign rebuild the same digest.
+ */
+export const buildSend = (input: {
+  sendId: string
+  owner: Address
+  relayer: Address
+  to: Address
+  amount: bigint
+}): UnsignedDelegation => ({
+  delegate: getAddress(input.relayer),
+  delegator: getAddress(input.owner),
+  authority: ROOT_AUTHORITY,
+  caveats: [
+    { enforcer: arcAddresses.exactExecution, terms: sendExecution(input.to, input.amount), args: '0x' },
+    { enforcer: arcAddresses.limitedCalls, terms: toHex(1n, { size: 32 }), args: '0x' },
+  ],
+  salt: saltOf(`send:${input.sendId}`),
+})

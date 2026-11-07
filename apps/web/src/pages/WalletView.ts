@@ -1,6 +1,5 @@
 import { Option } from 'effect'
 import { format, type Locale } from '@ethmumbai/i18n'
-import { Dialog } from '@foldkit/ui'
 import { clsx } from 'clsx'
 import { Submodel } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -9,9 +8,10 @@ import { type EpisodeActivity, leftToday, type RobotView, usdc, itemName } from 
 import { duck } from '../Duck.ts'
 import { onlyUsdcOnArc, receiveBody } from '../Receive.ts'
 import { episodeRouter, episodesRouter, robotConsoleRouter, robotsRouter, welcomeRouter } from '../route.ts'
-import { sheetTitleClassName, sheetView } from '../Sheet.ts'
+import { describedSheet } from '../Sheet.ts'
 import { walletSkeleton } from '../Skeleton.ts'
 import { failedView, signedOutView } from './Shared.ts'
+import { sendSheet } from './SendView.ts'
 import { Decline, type Home, Message, type Model, type NeedsYou, WalletState } from './Wallet.ts'
 import { busyLabel } from '../Busy.ts'
 
@@ -26,9 +26,6 @@ const spentClassName = 'text-muted'
 const pillRowClassName = 'flex flex-wrap gap-1.5 px-1 pt-4 pb-1'
 const pillClassName =
   'inline-flex min-h-11 cursor-pointer items-center gap-1 rounded-full bg-surface pr-3.5 pl-3 font-semibold no-underline shadow-[0_1px_2px_rgb(31_45_54/0.06)] transition-transform active:scale-[0.96]'
-const pillDisabledClassName =
-  'inline-flex min-h-11 cursor-not-allowed items-center gap-1 rounded-full bg-surface/60 pr-2.5 pl-3 font-semibold text-muted'
-const soonClassName = 'rounded-md bg-paper px-1.5 text-xs font-semibold text-muted'
 const sectionTitleClassName = 'px-2 pt-6 pb-2.5 font-display text-xl leading-tight font-bold'
 const askCardClassName = 'mx-0.5 grid gap-2.5 rounded-[24px_24px_24px_8px] bg-duck px-4 pt-3.5 pb-4'
 const whoClassName = 'flex items-center gap-2 text-sm text-duck-deep'
@@ -90,17 +87,8 @@ const pills = (locale: Locale, h: HtmlBuilder<Message>): Html =>
     [h.Class(pillRowClassName), h.AriaLabel(format(locale, 'home.actions', {}))],
     [
       h.button(
-        [
-          h.Type('button'),
-          h.Class(pillDisabledClassName),
-          h.Disabled(true),
-          h.AriaLabel(format(locale, 'home.sendSoon', {})),
-        ],
-        [
-          h.span([h.AriaHidden(true)], ['↗ ']),
-          format(locale, 'home.send', {}),
-          h.span([h.Class(soonClassName)], [format(locale, 'home.soon', {})]),
-        ],
+        [h.Type('button'), h.Class(pillClassName), h.OnClick(Message.ClickedSend())],
+        [h.span([h.AriaHidden(true)], ['↗ ']), format(locale, 'home.send', {})],
       ),
       h.button(
         [h.Type('button'), h.Class(pillClassName), h.OnClick(Message.ClickedReceive())],
@@ -298,26 +286,19 @@ const paymentRow = (episode: EpisodeActivity, onZeroG: boolean, locale: Locale, 
 
 const receiveSheet = (model: Model, home: Home, locale: Locale, h: HtmlBuilder<Message>): Html => {
   const address = home.wallet.account.smartAccount
-  return h.submodel({
-    slotId: model.receiveSheet.id,
-    model: model.receiveSheet,
-    view: Dialog.view,
-    viewInputs: {
-      hasDescription: true,
-      toView: (render: Dialog.RenderInfo) =>
-        sheetView(
-          render,
-          [
-            h.h2([...render.title, h.Class(sheetTitleClassName)], [format(locale, 'receive.title', {})]),
-            ...receiveBody({ address, copy: model.copy, onCopy: Message.ClickedCopyAddress({ address }), locale, h }),
-            onlyUsdcOnArc(locale, h, render.description),
-          ],
-          format(locale, 'profile.close', {}),
-          h,
-        ),
+  return describedSheet(
+    {
+      sheet: model.receiveSheet,
+      title: format(locale, 'receive.title', {}),
+      closeLabel: format(locale, 'profile.close', {}),
+      content: (description) => [
+        ...receiveBody({ address, copy: model.copy, onCopy: Message.ClickedCopyAddress({ address }), locale, h }),
+        onlyUsdcOnArc(locale, h, description),
+      ],
+      toParentMessage: (message) => Message.GotReceiveSheetMessage({ message }),
     },
-    toParentMessage: (message) => Message.GotReceiveSheetMessage({ message }),
-  })
+    h,
+  )
 }
 
 type FirstStep = { readonly done: boolean; readonly label: string; readonly action: Html }
@@ -461,6 +442,7 @@ const loadedView = (model: Model, home: Home, locale: Locale, h: HtmlBuilder<Mes
         ],
       ),
       receiveSheet(model, home, locale, h),
+      sendSheet(model, home, locale, h),
     ],
   )
 

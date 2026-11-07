@@ -7,6 +7,7 @@ import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
 import { EpisodeSummary, listEpisodes } from '../api/Episodes.ts'
 import { isSignedOut } from '../api/Http.ts'
+import { ActionFailure, actionFailureOf, signWithPasskey } from '../api/OwnerAction.ts'
 import { loadEpisodeApproval, terminalStates } from '../api/Robot.ts'
 import {
   ActivityView,
@@ -16,9 +17,12 @@ import {
   loadActivity,
   loadWallet,
   RobotView,
+  sendOptions,
+  signSend,
   WalletView,
 } from '../api/Wallet.ts'
 import { Clipboard } from '../Clipboard.ts'
+import type { Passkeys } from '../Passkey.ts'
 import { sheetFolds } from '../Sheet.ts'
 import { Copy } from '../Receive.ts'
 import * as Telegram from '../Telegram.ts'
@@ -61,11 +65,23 @@ export const Decline = defineTaggedUnion({
   Declining: { approvalId: Schema.String },
   Failed: { approvalId: Schema.String, error: Schema.String },
 })
+/** The Send sheet: the owner types an Arc address and an amount, the passkey signs that one transfer. */
+export const SendStep = defineTaggedUnion({
+  Editing: {},
+  Signing: {},
+  /** `pending`: broadcast, no receipt yet; the balance catches up once Arc settles it. */
+  Done: { status: Schema.Literals(['sent', 'pending']), txHash: Schema.NullOr(Schema.String) },
+  Failed: { failure: ActionFailure },
+})
 export const Model = Schema.Struct({
   state: WalletState,
   copy: Copy,
   decline: Decline,
   receiveSheet: Dialog.Model,
+  sendSheet: Dialog.Model,
+  sendTo: Schema.String,
+  sendAmount: Schema.String,
+  sendStep: SendStep,
 })
 export type Model = typeof Model.Type
 
@@ -82,6 +98,14 @@ export const Message = defineMessageUnion({
   ClickedDecline: { approvalId: Schema.String },
   SucceededDecline: {},
   FailedDecline: { approvalId: Schema.String, error: Schema.String },
+  ClickedSend: {},
+  GotSendSheetMessage: { message: Dialog.Message },
+  UpdatedSendTo: { value: Schema.String },
+  UpdatedSendAmount: { value: Schema.String },
+  ClickedSendMax: { amount: Schema.String },
+  SubmittedSend: {},
+  SucceededSend: { status: Schema.Literals(['sent', 'pending']), txHash: Schema.NullOr(Schema.String) },
+  FailedSend: { failure: ActionFailure },
 })
 export type Message = typeof Message.Type
 
@@ -178,9 +202,41 @@ export const DeclineApproval = Command.define('DeclineApproval', {
     ),
 })
 
+/**
+ * Options (a one-time delegation for exactly this transfer), the passkey over its digest, then the relayer has the
+ * account transfer the USDC on Arc (deploying the account first if it is still counterfactual).
+ * @internal Exported for the scene tests; the page update is its only production caller.
+ */
+export const SendUsdc = Command.define('SendUsdc', {
+  args: { to: Schema.String, amount: Schema.String },
+  messages: [Message.SucceededSend, Message.FailedSend],
+  execute: ({ to, amount }) =>
+    Effect.gen(function* () {
+      const prompt = yield* sendOptions(to, amount)
+      const assertion = yield* signWithPasskey(prompt)
+      const sent = yield* signSend({ sendId: prompt.sendId, to, amount, assertion })
+      return Message.SucceededSend({ status: sent.status, txHash: sent.txHash })
+    }).pipe(Effect.catch((error) => Effect.succeed(Message.FailedSend({ failure: actionFailureOf(error) })))),
+})
+
+/** What is wrong with the typed send, if anything (the server checks the same and Arc has the final word). */
+export type SendProblem = 'address' | 'amount' | 'overBalance'
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/
+const AMOUNT = /^(?:0|[1-9][0-9]{0,5})(?:\.[0-9]{1,6})?$/
+const amountUnits = (text: string) => {
+  const [whole = '0', fraction = ''] = text.split('.')
+  return BigInt(whole) * 1_000_000n + BigInt(fraction.padEnd(6, '0'))
+}
+export const sendProblem = (to: string, amount: string, balanceUnits: string | null): SendProblem | null => {
+  if (!ADDRESS.test(to.trim())) return 'address'
+  if (!AMOUNT.test(amount.trim()) || amountUnits(amount.trim()) === 0n) return 'amount'
+  if (balanceUnits !== null && amountUnits(amount.trim()) > BigInt(balanceUnits)) return 'overBalance'
+  return null
+}
+
 // INIT
 
-type UpdateReturn = Update.Return<Model, Message, HttpClient.HttpClient | Clipboard>
+type UpdateReturn = Update.Return<Model, Message, HttpClient.HttpClient | Clipboard | Passkeys>
 
 export const init = (): UpdateReturn => ({
   model: {
@@ -188,6 +244,10 @@ export const init = (): UpdateReturn => ({
     copy: Copy.Idle(),
     decline: Decline.Idle(),
     receiveSheet: Dialog.init({ id: 'receive', isAnimated: true }),
+    sendSheet: Dialog.init({ id: 'send', isAnimated: true }),
+    sendTo: '',
+    sendAmount: '',
+    sendStep: SendStep.Editing(),
   },
   commands: [LoadWallet({ delayMillis: 0 })],
 })
@@ -204,6 +264,23 @@ const receiveSheet = sheetFolds<Model, Message>({
   write: (model, sheet) => modifyFields(model, { receiveSheet: () => sheet }),
   toParentMessage: (message) => Message.GotReceiveSheetMessage({ message }),
 })
+
+const sendSheet = sheetFolds<Model, Message>({
+  read: (model) => model.sendSheet,
+  write: (model, sheet) => modifyFields(model, { sendSheet: () => sheet }),
+  toParentMessage: (message) => Message.GotSendSheetMessage({ message }),
+})
+
+const balanceOf = (model: Model): string | null =>
+  WalletState.guards.Loaded(model.state) ? (model.state.home.wallet.balance?.units ?? null) : null
+
+const submitSend = (model: Model): UpdateReturn =>
+  SendStep.guards.Signing(model.sendStep) || sendProblem(model.sendTo, model.sendAmount, balanceOf(model)) !== null
+    ? { model }
+    : {
+        model: modifyFields(model, { sendStep: () => SendStep.Signing() }),
+        commands: [SendUsdc({ to: model.sendTo.trim(), amount: model.sendAmount.trim() })],
+      }
 
 export const update = (model: Model, message: Message): UpdateReturn =>
   Message.match(message, {
@@ -240,4 +317,25 @@ export const update = (model: Model, message: Message): UpdateReturn =>
     FailedDecline: ({ approvalId, error }) => ({
       model: modifyFields(model, { decline: () => Decline.Failed({ approvalId, error }) }),
     }),
+    // A finished send starts the next one empty; an unfinished one keeps what the owner typed. A send still pending
+    // on Arc stays on screen (until the page reloads), so the same money is not sent twice while its outcome is open.
+    ClickedSend: () =>
+      sendSheet.open(
+        SendStep.guards.Done(model.sendStep) && model.sendStep.status === 'sent'
+          ? modifyFields(model, { sendTo: () => '', sendAmount: () => '', sendStep: () => SendStep.Editing() })
+          : SendStep.guards.Failed(model.sendStep)
+            ? modifyFields(model, { sendStep: () => SendStep.Editing() })
+            : model,
+      ),
+    GotSendSheetMessage: ({ message: sheetMessage }) => sendSheet.fold(model, sheetMessage),
+    UpdatedSendTo: ({ value }) => ({ model: modifyFields(model, { sendTo: () => value }) }),
+    UpdatedSendAmount: ({ value }) => ({ model: modifyFields(model, { sendAmount: () => value }) }),
+    ClickedSendMax: ({ amount }) => ({ model: modifyFields(model, { sendAmount: () => amount }) }),
+    SubmittedSend: () => submitSend(model),
+    SucceededSend: ({ status, txHash }) => ({
+      model: modifyFields(model, { sendStep: () => SendStep.Done({ status, txHash }) }),
+      // Pending: Arc has not settled it yet, so the balance is read again a little later.
+      commands: [LoadWallet({ delayMillis: status === 'sent' ? 0 : POLL_MILLIS * 3 })],
+    }),
+    FailedSend: ({ failure }) => ({ model: modifyFields(model, { sendStep: () => SendStep.Failed({ failure }) }) }),
   })

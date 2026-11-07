@@ -4,10 +4,10 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { type ArcClient, ArcRpcError, GAS_POLICY, rpc, withHeadroom } from './Arc.ts'
 import { ARC_CHAIN_ID } from './Env.ts'
 
-// The relayer EOA submits settlements, revokes and account deploys. One key, one nonce sequence: every send is keyed
-// (`settle:<invoiceHash>`, `revoke:<delegationHash>`, `deploy:<smartAccount>`) and claimed in `relayer_txs` first,
+// The relayer EOA submits settlements, revokes, owner sends and account deploys. One key, one nonce sequence: every send is keyed
+// (`settle:<invoiceHash>`, `revoke:<delegationHash>`, `send:<sendId>`, `deploy:<smartAccount>`) and claimed in `relayer_txs` first,
 // so a second attempt for the same key is refused before anything is signed (the persistent replay guard).
-export type RelayerTxKind = 'settle' | 'revoke' | 'deploy'
+export type RelayerTxKind = 'settle' | 'revoke' | 'deploy' | 'send'
 export type RelayerTxStatus = 'pending' | 'sent' | 'confirmed' | 'failed'
 
 export type RelayerTx = {

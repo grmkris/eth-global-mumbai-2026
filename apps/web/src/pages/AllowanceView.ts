@@ -76,7 +76,8 @@ export type ViewInputs = Readonly<{
   balanceUnits?: string | null
 }>
 
-const failureText = (failure: ActionFailure, locale: Locale) =>
+/** Why an owner action did not finish, in words (also the wallet's Send sheet). */
+export const failureText = (failure: ActionFailure, locale: Locale) =>
   ActionFailure.match(failure, {
     Passkey: () => format(locale, 'auth.passkeyFailed', {}),
     Server: ({ error }) => format(locale, 'common.errorDetail', { message: error }),

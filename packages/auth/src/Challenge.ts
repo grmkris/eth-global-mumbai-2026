@@ -2,7 +2,7 @@ import { Effect, Schema } from 'effect'
 import * as Base64Url from 'effect/encoding/Base64Url'
 
 /** What a stored challenge may be spent on; a challenge of one kind never satisfies another. */
-export const ChallengeKind = Schema.Literals(['register', 'login', 'grant', 'revoke'])
+export const ChallengeKind = Schema.Literals(['register', 'login', 'grant', 'revoke', 'send'])
 export type ChallengeKind = typeof ChallengeKind.Type
 
 /** Every challenge is single-use and lives five minutes (spec §4). */

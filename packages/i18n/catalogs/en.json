@@ -144,7 +144,6 @@
     "spent": "Your robots spent {amount} USDC in the last 24 hours",
     "actions": "Wallet actions",
     "send": "Send",
-    "soon": "Soon",
     "receive": "Receive",
     "robot": "Robot",
     "addRobot": "Add a robot",
@@ -176,7 +175,6 @@
     "paid": "Paid",
     "notPaid": "Not paid",
     "pending": "Pending",
-    "sendSoon": "Send, coming soon",
     "lineLeft": "{amount} USDC left today",
     "firstSteps": "Getting started",
     "stepTelegram": "Get your robot's messages on Telegram",
@@ -189,6 +187,22 @@
     "stepErrand": "Send it on its first errand",
     "stepSend": "Send",
     "stepDone": ", done"
+  },
+  "send": {
+    "title": "Send USDC",
+    "to": "To (an address on Arc)",
+    "amount": "Amount in USDC",
+    "max": "Max",
+    "maxLabel": "Send everything: {balance} USDC",
+    "note": "You have {balance} USDC.",
+    "final": "Only USDC on Arc. A send cannot be undone.",
+    "badAddress": "An Arc address starts with 0x and has 40 more characters.",
+    "badAmount": "Type an amount above 0, with at most 6 decimals.",
+    "overBalance": "That is more than the wallet holds ({balance} USDC).",
+    "confirm": "Send with passkey",
+    "signing": "Sending on Arc...",
+    "sent": "Sent {amount} USDC to {to}",
+    "pending": "Sending {amount} USDC to {to}. Your balance updates when Arc confirms it."
   },
   "receive": {
     "title": "Receive USDC",

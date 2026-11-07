@@ -24,7 +24,7 @@ const MAX_GRANT_SECONDS = 30 * 86_400
 const START_SLACK_SECONDS = 60
 
 /** A USDC amount as typed by the owner ("0.30"), at most 6 decimals. */
-const UsdcText = Schema.String.check(Schema.isPattern(/^(?:0|[1-9][0-9]{0,5})(?:\.[0-9]{1,6})?$/))
+export const UsdcText = Schema.String.check(Schema.isPattern(/^(?:0|[1-9][0-9]{0,5})(?:\.[0-9]{1,6})?$/))
 export const usdcBaseUnits = (text: string): bigint => {
   const [whole = '0', fraction = ''] = text.split('.')
   return BigInt(whole) * 1_000_000n + BigInt(fraction.padEnd(6, '0'))

@@ -71,3 +71,34 @@ export const sheetView = <M>(
         ]
       : [],
   )
+
+/** A titled sheet as a Dialog submodel, its content handed the description's attributes (Receive, Send). */
+export const describedSheet = <M>(
+  config: {
+    readonly sheet: Dialog.Model
+    readonly title: string
+    readonly closeLabel: string
+    readonly content: (description: Dialog.RenderInfo['description']) => ReadonlyArray<Html>
+    readonly toParentMessage: (message: Dialog.Message) => M
+  },
+  h: HtmlBuilder<M>,
+): Html =>
+  h.submodel({
+    slotId: config.sheet.id,
+    model: config.sheet,
+    view: Dialog.view,
+    viewInputs: {
+      hasDescription: true,
+      toView: (render: Dialog.RenderInfo) =>
+        sheetView(
+          render,
+          [
+            h.h2([...render.title, h.Class(sheetTitleClassName)], [config.title]),
+            ...config.content(render.description),
+          ],
+          config.closeLabel,
+          h,
+        ),
+    },
+    toParentMessage: config.toParentMessage,
+  })

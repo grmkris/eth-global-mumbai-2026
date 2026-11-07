@@ -194,8 +194,6 @@ export interface MessageArgumentsByKey<T = string> {
   'home.robot': Readonly<Record<string, never>>
   'home.robots': Readonly<Record<string, never>>
   'home.send': Readonly<Record<string, never>>
-  'home.sendSoon': Readonly<Record<string, never>>
-  'home.soon': Readonly<Record<string, never>>
   'home.spent': { readonly amount: string | number }
   'home.stepAdd': Readonly<Record<string, never>>
   'home.stepAllowance': Readonly<Record<string, never>>
@@ -276,6 +274,20 @@ export interface MessageArgumentsByKey<T = string> {
   'receive.title': Readonly<Record<string, never>>
   'robot.state': { readonly state: string | number }
   'robots.openConsole': Readonly<Record<string, never>>
+  'send.amount': Readonly<Record<string, never>>
+  'send.badAddress': Readonly<Record<string, never>>
+  'send.badAmount': Readonly<Record<string, never>>
+  'send.confirm': Readonly<Record<string, never>>
+  'send.final': Readonly<Record<string, never>>
+  'send.max': Readonly<Record<string, never>>
+  'send.maxLabel': { readonly balance: string | number }
+  'send.note': { readonly balance: string | number }
+  'send.overBalance': { readonly balance: string | number }
+  'send.pending': { readonly amount: string | number; readonly to: string | number }
+  'send.sent': { readonly amount: string | number; readonly to: string | number }
+  'send.signing': Readonly<Record<string, never>>
+  'send.title': Readonly<Record<string, never>>
+  'send.to': Readonly<Record<string, never>>
   'telegram.checking': Readonly<Record<string, never>>
   'telegram.connect': Readonly<Record<string, never>>
   'telegram.connected': Readonly<Record<string, never>>
@@ -384,4 +396,4 @@ export interface MessageArgumentsByKey<T = string> {
 }
 export type MessageKey = keyof MessageArgumentsByKey
 export type MessageValues<K extends MessageKey, T = string> = MessageArgumentsByKey<T>[K]
-export const catalogVersion = 'ba73660a88f2ee42b503f51b00542233c4ee7c026d7d2ad133438b07c2119cc6'
+export const catalogVersion = 'e8869ccd962e00720220274b0439c0a34aa5ff4bb75b0fe4fe12999c8dd074af'

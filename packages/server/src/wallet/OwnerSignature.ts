@@ -9,7 +9,7 @@ import { BadRequest, issueChallenge, spendChallenge, verifyStoredAssertion } fro
 import { accountPasskey } from '../auth/Store.ts'
 import { NotFound } from './Errors.ts'
 
-export type OwnerAction = 'grant' | 'revoke'
+export type OwnerAction = 'grant' | 'revoke' | 'send'
 
 /** `navigator.credentials.get` options for signing `digest` with the account's own passkey (a stored challenge). */
 export const ownerSignatureOptions = Effect.fn('EthMumbai.Wallet.ownerSignatureOptions')(function* (

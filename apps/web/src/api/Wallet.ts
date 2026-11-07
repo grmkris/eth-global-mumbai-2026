@@ -126,6 +126,30 @@ export const signRevoke = (grantId: string, assertion: AssertionRequest) =>
     }),
   )
 
+/** The owner's own send (spec §4 owner actions): the passkey signs a one-time delegation for exactly this transfer. */
+export const sendOptions = (to: string, amount: string) =>
+  postJson(
+    '/api/wallet/send/options',
+    { to, amount },
+    Schema.Struct({ ...AssertionOptions.fields, sendId: Schema.String, allowCredentials: Schema.Array(Schema.String) }),
+  )
+export const signSend = (input: {
+  readonly sendId: string
+  readonly to: string
+  readonly amount: string
+  readonly assertion: AssertionRequest
+}) =>
+  postJson(
+    '/api/wallet/send/sign',
+    input,
+    // 200 sent (with the tx) or 202 broadcast and still pending on Arc (the hash when the relayer has it).
+    Schema.Struct({
+      sendId: Schema.String,
+      status: Schema.Literals(['sent', 'pending']),
+      txHash: Nullable(Schema.String),
+    }),
+  )
+
 export const Catalogue = Schema.Struct({
   merchantId: Schema.String,
   name: Schema.String,

@@ -41,6 +41,34 @@ const cancelPairingChecks = (appUrl: string, cookie: string, strangerCookie: str
     expect(remaining.robots.map(({ id }) => id)).toEqual([keptRobotId])
   })
 
+const SendPrompt = Schema.Struct({
+  sendId: Schema.String.check(Schema.isPattern(/^[a-z2-7]{26}$/)),
+  userVerification: Schema.Literal('required'),
+})
+
+/** Send: a session and a well-formed address and amount first. A new wallet holds nothing, so the Worker refuses
+ * before any passkey prompt (409) once Arc's public RPC answers the balance; when it does not, Arc stays the final
+ * word and the prompt is issued (200). Either way no relayer transaction is attempted. */
+const sendChecks = (appUrl: string, cookie: string) =>
+  Effect.gen(function* () {
+    const call = passkeyCall(appUrl)
+    const sendTo = '0x00000000000000000000000000000000000000b0'
+    expect((yield* call('/api/wallet/send/options', { to: sendTo, amount: '0.10' })).status).toBe(401)
+    expect((yield* call('/api/wallet/send/options', { to: 'nope', amount: '0.10' }, cookie)).status).toBe(400)
+    expect((yield* call('/api/wallet/send/options', { to: sendTo, amount: '-1' }, cookie)).status).toBe(400)
+    const zero = yield* call('/api/wallet/send/options', { to: sendTo, amount: '0' }, cookie)
+    expect(zero.status).toBe(409)
+    expect(yield* zero.json).toEqual({ error: 'the amount must be more than 0' })
+    const empty = yield* call('/api/wallet/send/options', { to: sendTo, amount: '0.10' }, cookie)
+    const body: unknown = yield* empty.json
+    if (empty.status === 409) expect(body).toEqual({ error: 'the amount is more than the wallet holds' })
+    else {
+      expect(empty.status).toBe(200)
+      yield* Schema.decodeUnknownEffect(SendPrompt)(body)
+    }
+    expect((yield* call('/api/wallet/send/sign', { to: sendTo, amount: '0.10', sendId: 'x' }, cookie)).status).toBe(400)
+  })
+
 const walletGuards = (test: TestApi['test'], stack: Effect.Effect<Urls>) =>
   test(
     'wallet: owner-scoped robots with pairing codes, session and Origin guards, grant limits enforced',
@@ -105,6 +133,7 @@ const walletGuards = (test: TestApi['test'], stack: Effect.Effect<Urls>) =>
       expect(tooLong.status).toBe(409)
       expect(yield* tooLong.json).toEqual({ error: 'the grant must expire within 30 days' })
       expect((yield* call('/api/wallet/grants/nope/revoke/options', {}, cookie)).status).toBe(404)
+      yield* sendChecks(appUrl, cookie)
       const wallet = yield* HttpClient.get(`${appUrl}/api/wallet`, { headers: { cookie } })
       expect(wallet.status).toBe(200)
       expect(yield* wallet.json).toMatchObject({

@@ -33,6 +33,7 @@ import {
   arcEnvironment,
   buildGrant,
   buildRevoke,
+  buildSend,
   counterfactualAccount,
   decodePermissionContext,
   decodePolicyTerms,
@@ -40,8 +41,10 @@ import {
   encodePermissionContext,
   isSignedBy,
   makeApprover,
+  sendExecution,
   signLeaf,
   toKitDelegation,
+  transferCall,
   USDC,
 } from '../src/index.ts'
 import { offlineClient } from './OfflineClient.ts'
@@ -193,6 +196,30 @@ describe('grant, revoke and leaf builders', () => {
       arcAddresses.limitedCalls,
     ])
     expect(revoke.caveats[0]?.terms.slice(0, 42).toLowerCase()).toBe(arcAddresses.delegationManager.toLowerCase())
+  })
+
+  test('send is a one-time owner → relayer delegation of exactly USDC.transfer(to, amount), bound to its id', () => {
+    const owner = randomAddress()
+    const relayer = randomAddress()
+    const to = randomAddress()
+    const input = { sendId: 'bbbbbbbbbbbbbbbbbbbbbbbbbb', owner, relayer, to, amount: 1_500_000n }
+    const send = buildSend(input)
+    expect(send.delegate).toBe(relayer)
+    expect(send.delegator).toBe(owner)
+    expect(send.caveats.map((caveat) => caveat.enforcer)).toEqual([
+      arcAddresses.exactExecution,
+      arcAddresses.limitedCalls,
+    ])
+    // The ExactExecution term is the very execution the relayer redeems: USDC, value 0, transfer(to, 1.50).
+    expect(send.caveats[0]?.terms).toBe(sendExecution(to, 1_500_000n))
+    expect(send.caveats[0]?.terms.slice(0, 42).toLowerCase()).toBe(USDC.toLowerCase())
+    expect(send.caveats[0]?.terms.endsWith(transferCall(to, 1_500_000n).slice(2))).toBe(true)
+    expect(send.caveats[1]?.terms).toBe(toHex(1n, { size: 32 }))
+    // Options and sign rebuild the same digest; any change of terms or id is a different delegation.
+    expect(delegationDigest(buildSend(input))).toBe(delegationDigest(send))
+    expect(delegationHash(buildSend({ ...input, amount: 1_500_001n }))).not.toBe(delegationHash(send))
+    expect(delegationHash(buildSend({ ...input, to: randomAddress() }))).not.toBe(delegationHash(send))
+    expect(delegationHash(buildSend({ ...input, sendId: 'cccccccccccccccccccccccccc' }))).not.toBe(delegationHash(send))
   })
 })
 

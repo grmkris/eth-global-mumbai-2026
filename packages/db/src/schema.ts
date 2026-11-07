@@ -42,7 +42,7 @@ export const authChallenges = sqliteTable(
   'auth_challenges',
   {
     id: text('id').primaryKey(),
-    kind: text('kind', { enum: ['register', 'login', 'grant', 'revoke'] }).notNull(),
+    kind: text('kind', { enum: ['register', 'login', 'grant', 'revoke', 'send'] }).notNull(),
     accountId: text('account_id'),
     ref: text('ref'),
     expiresAt: integer('expires_at').notNull(),
@@ -289,7 +289,7 @@ export const relayerTxs = sqliteTable(
   'relayer_txs',
   {
     key: text('key').primaryKey(),
-    kind: text('kind', { enum: ['settle', 'revoke', 'deploy'] }),
+    kind: text('kind', { enum: ['settle', 'revoke', 'deploy', 'send'] }),
     nonce: integer('nonce'),
     toAddress: text('to_address'),
     dataSha256: text('data_sha256'),
