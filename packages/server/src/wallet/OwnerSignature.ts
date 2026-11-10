@@ -4,7 +4,7 @@ import { challengeOf, encodeDeleGatorSignature } from '@ethmumbai/chain/DeleGato
 import { Effect, Option, Result } from 'effect'
 import * as Base64Url from 'effect/encoding/Base64Url'
 import type { Hex } from 'viem'
-import { AuthOrigin } from '../auth/Origin.ts'
+import { requestRelyingParty } from '../auth/Origin.ts'
 import { BadRequest, issueChallenge, spendChallenge, verifyStoredAssertion } from '../auth/Routes.ts'
 import { accountPasskey } from '../auth/Store.ts'
 import { NotFound } from './Errors.ts'
@@ -23,7 +23,7 @@ export const ownerSignatureOptions = Effect.fn('EthMumbai.Wallet.ownerSignatureO
     { kind: input.action, accountId: input.accountId, ref: input.ref },
     challengeOf(input.digest),
   )
-  const { rpId } = yield* AuthOrigin
+  const { rpId } = yield* requestRelyingParty
   return {
     challenge,
     rpId,

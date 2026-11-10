@@ -23,7 +23,7 @@ import * as HttpServerRequest from 'effect/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/http/HttpServerResponse'
 import { json, jsonError, nowSeconds } from '../Respond.ts'
 import { signup } from '../wallet/Signup.ts'
-import { AuthOrigin, requireSameOrigin } from './Origin.ts'
+import { AuthOrigin, requestRelyingParty, requireSameOrigin } from './Origin.ts'
 import { currentAccount, SessionAuth, withoutSessionCookie, withSessionCookie } from './Session.ts'
 import { advanceSignCount, consumeChallenge, findAccount, findPasskey, insertChallenge } from './Store.ts'
 
@@ -124,7 +124,7 @@ const registerVerify = (database: QueryDatabaseClient) =>
 
 const loginOptions = (database: QueryDatabaseClient) =>
   Effect.gen(function* () {
-    const { rpId } = yield* AuthOrigin
+    const { rpId } = yield* requestRelyingParty
     const challenge = yield* issueChallenge(database, { kind: 'login', accountId: null, ref: null })
     return yield* json({ challenge, rpId, userVerification: 'required', timeout: challengeLifetimeSeconds * 1000 })
   })
@@ -141,7 +141,7 @@ export const verifyStoredAssertion = Effect.fn('EthMumbai.Auth.verifyStoredAsser
   const { signCount } = yield* verifyAssertion({
     request,
     expectedChallenge,
-    relyingParty: yield* AuthOrigin,
+    relyingParty: yield* requestRelyingParty,
     passkey: { credentialId: passkey.credential_id, x: passkey.x, y: passkey.y, signCount: passkey.sign_count },
   })
   const advanced = yield* advanceSignCount(database, {
